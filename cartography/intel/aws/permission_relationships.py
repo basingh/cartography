@@ -30,6 +30,8 @@ def evaluate_clause(clause: str, match: str) -> bool:
     Returns:
         [bool] -- True if the clause matched, False otherwise
     """
+    logger.debug(f"Evaluating clause {clause} against {match}")
+    print(f"Evaluating clause {clause} against {match}")
     result = compile_regex(clause).fullmatch(match)
     return result is not None
 

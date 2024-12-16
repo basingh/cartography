@@ -60,7 +60,8 @@ services:
   cartography-dev:
     # See dev instructions: we assume that you have built this with
     # `docker build -t cartography-cncf/cartography-dev -f dev.Dockerfile ./`
-    image: cartography-cncf/cartography-dev
+    image: ghcr.io/cartography-cncf/cartography:latest
+    platform: linux/x86_64
     init: true
     restart: on-failure
     depends_on:

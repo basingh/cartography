@@ -246,15 +246,15 @@ def load_users(
     neo4j_session: neo4j.Session, users: List[Dict], current_aws_account_id: str, aws_update_tag: int,
 ) -> None:
     ingest_user = """
-    MERGE (unode:AWSUser{arn: $ARN})
-    ON CREATE SET unode:AWSPrincipal, unode.userid = $USERID, unode.firstseen = timestamp(),
+    MERGE (unode:AWSUser {arn: $ARN})
+    ON CREATE SET unode:AWSPrincipal, unode.userid = $USERID, unode.firstseen = timestamp({timezone: 'UTC'}),
     unode.createdate = $CREATE_DATE
     SET unode.name = $USERNAME, unode.path = $PATH, unode.passwordlastused = $PASSWORD_LASTUSED,
     unode.lastupdated = $aws_update_tag
     WITH unode
     MATCH (aa:AWSAccount{id: $AWS_ACCOUNT_ID})
     MERGE (aa)-[r:RESOURCE]->(unode)
-    ON CREATE SET r.firstseen = timestamp()
+    ON CREATE SET r.firstseen = timestamp({timezone: 'UTC'})
     SET r.lastupdated = $aws_update_tag
     """
     logger.info(f"Loading {len(users)} IAM users.")
@@ -278,12 +278,12 @@ def load_groups(
 ) -> None:
     ingest_group = """
     MERGE (gnode:AWSGroup{arn: $ARN})
-    ON CREATE SET gnode.groupid = $GROUP_ID, gnode.firstseen = timestamp(), gnode.createdate = $CREATE_DATE
+    ON CREATE SET gnode.groupid = $GROUP_ID, gnode.firstseen = timestamp({timezone: 'UTC'}), gnode.createdate = $CREATE_DATE
     SET gnode:AWSPrincipal, gnode.name = $GROUP_NAME, gnode.path = $PATH,gnode.lastupdated = $aws_update_tag
     WITH gnode
     MATCH (aa:AWSAccount{id: $AWS_ACCOUNT_ID})
     MERGE (aa)-[r:RESOURCE]->(gnode)
-    ON CREATE SET r.firstseen = timestamp()
+    ON CREATE SET r.firstseen = timestamp({timezone: 'UTC'})
     SET r.lastupdated = $aws_update_tag
     """
     logger.info(f"Loading {len(groups)} IAM groups to the graph.")
@@ -321,7 +321,7 @@ def load_roles(
 ) -> None:
     ingest_role = """
     MERGE (rnode:AWSPrincipal{arn: $Arn})
-    ON CREATE SET rnode.firstseen = timestamp()
+    ON CREATE SET rnode.firstseen = timestamp({timezone: 'UTC'})
     SET
         rnode:AWSRole,
         rnode.roleid = $RoleId,
@@ -332,18 +332,18 @@ def load_roles(
     WITH rnode
     MATCH (aa:AWSAccount{id: $AWS_ACCOUNT_ID})
     MERGE (aa)-[r:RESOURCE]->(rnode)
-    ON CREATE SET r.firstseen = timestamp()
+    ON CREATE SET r.firstseen = timestamp({timezone: 'UTC'})
     SET r.lastupdated = $aws_update_tag
     """
 
     ingest_policy_statement = """
     MERGE (spnnode:AWSPrincipal{arn: $SpnArn})
-    ON CREATE SET spnnode.firstseen = timestamp()
+    ON CREATE SET spnnode.firstseen = timestamp({timezone: 'UTC'})
     SET spnnode.lastupdated = $aws_update_tag, spnnode.type = $SpnType
     WITH spnnode
     MATCH (role:AWSRole{arn: $RoleArn})
     MERGE (role)-[r:TRUSTS_AWS_PRINCIPAL]->(spnnode)
-    ON CREATE SET r.firstseen = timestamp()
+    ON CREATE SET r.firstseen = timestamp({timezone: 'UTC'})
     SET r.lastupdated = $aws_update_tag
     """
 
@@ -357,13 +357,13 @@ def load_roles(
     # - Why seperate statement is needed - the arn may point to service level principals ex - ec2.amazonaws.com
     ingest_spnmap_statement = """
     MERGE (aa:AWSAccount{id: $SpnAccountId})
-    ON CREATE SET aa.firstseen = timestamp()
+    ON CREATE SET aa.firstseen = timestamp({timezone: 'UTC'})
     SET aa.lastupdated = $aws_update_tag
     WITH aa
     MATCH (spnnode:AWSPrincipal{arn: $SpnArn})
     WITH spnnode, aa
     MERGE (aa)-[r:RESOURCE]->(spnnode)
-    ON CREATE SET r.firstseen = timestamp()
+    ON CREATE SET r.firstseen = timestamp({timezone: 'UTC'})
     """
 
     # TODO support conditions
@@ -407,7 +407,7 @@ def load_group_memberships(neo4j_session: neo4j.Session, group_memberships: Dict
     WITH group
     MATCH (user:AWSUser{arn: $PrincipalArn})
     MERGE (user)-[r:MEMBER_AWS_GROUP]->(group)
-    ON CREATE SET r.firstseen = timestamp()
+    ON CREATE SET r.firstseen = timestamp({timezone: 'UTC'})
     SET r.lastupdated = $aws_update_tag
     WITH user, group
     MATCH (group)-[:POLICY]->(policy:AWSPolicy)
@@ -440,6 +440,7 @@ def get_policies_for_principal(neo4j_session: neo4j.Session, principal_arn: str)
     results = neo4j_session.run(
         get_policy_query,
         Arn=principal_arn,
+        
     )
     policies = {r["policy_id"]: parse_statement_node(r["statements"]) for r in results}
     return policies
@@ -468,7 +469,7 @@ def sync_assumerole_relationships(
     MATCH (role:AWSRole{arn: $TargetArn})
     WITH role, source
     MERGE (source)-[r:STS_ASSUMEROLE_ALLOW]->(role)
-    ON CREATE SET r.firstseen = timestamp()
+    ON CREATE SET r.firstseen = timestamp({timezone: 'UTC'})
     SET r.lastupdated = $aws_update_tag
     """
 
@@ -486,11 +487,11 @@ def sync_assumerole_relationships(
                 TargetArn=target_arn,
                 aws_update_tag=aws_update_tag,
             )
-    run_cleanup_job(
-        'aws_import_roles_policy_cleanup.json',
-        neo4j_session,
-        common_job_parameters,
-    )
+    # run_cleanup_job(
+    #     'aws_import_roles_policy_cleanup.json',
+    #     neo4j_session,
+    #     common_job_parameters,
+    # )
 
 
 @timeit
@@ -500,7 +501,7 @@ def load_user_access_keys(neo4j_session: neo4j.Session, user_access_keys: Dict, 
     MATCH (user:AWSUser{arn: $UserARN})
     WITH user
     MERGE (key:AccountAccessKey{accesskeyid: $AccessKeyId})
-    ON CREATE SET key.firstseen = timestamp(), key.createdate = $CreateDate
+    ON CREATE SET key.firstseen = timestamp({timezone: 'UTC'}), key.createdate = $CreateDate
     SET key.status = $Status,
         key.lastupdated = $aws_update_tag,
         key.lastuseddate = $LastUsedDate,
@@ -508,7 +509,7 @@ def load_user_access_keys(neo4j_session: neo4j.Session, user_access_keys: Dict, 
         key.lastusedregion = $LastUsedRegion
     WITH user,key
     MERGE (user)-[r:AWS_ACCESS_KEY]->(key)
-    ON CREATE SET r.firstseen = timestamp()
+    ON CREATE SET r.firstseen = timestamp({timezone: 'UTC'})
     SET r.lastupdated = $aws_update_tag
     """
 
@@ -581,7 +582,7 @@ def _load_policy_tx(
     ingest_policy = """
     MERGE (policy:AWSPolicy{id: $PolicyId})
     ON CREATE SET
-        policy.firstseen = timestamp(),
+        policy.firstseen = timestamp({timezone: 'UTC'}),
         policy.type = $PolicyType,
         policy.name = $PolicyName
     SET policy.lastupdated = $aws_update_tag
@@ -628,7 +629,7 @@ def load_policy_statements(
         statement.sid = statement_data.Sid,
         statement.lastupdated = $aws_update_tag
         MERGE (policy)-[r:STATEMENT]->(statement)
-        ON CREATE SET r.firstseen = timestamp()
+        ON CREATE SET r.firstseen = timestamp({timezone: 'UTC'})
         SET r.lastupdated = $aws_update_tag
         """
     neo4j_session.run(
@@ -673,7 +674,8 @@ def sync_users(
 
     sync_user_managed_policies(boto3_session, data, neo4j_session, aws_update_tag)
 
-    run_cleanup_job('aws_import_users_cleanup.json', neo4j_session, common_job_parameters)
+    # This function call executes a cleanup job to remove outdated or irrelevant IAM user data from the Neo4j database.
+    # run_cleanup_job('aws_import_users_cleanup.json', neo4j_session, common_job_parameters)
 
 
 @timeit
@@ -709,7 +711,7 @@ def sync_groups(
 
     sync_group_managed_policies(boto3_session, data, neo4j_session, aws_update_tag)
 
-    run_cleanup_job('aws_import_groups_cleanup.json', neo4j_session, common_job_parameters)
+    #run_cleanup_job('aws_import_groups_cleanup.json', neo4j_session, common_job_parameters)
 
 
 def sync_group_managed_policies(
@@ -777,11 +779,11 @@ def sync_group_memberships(
     groups = neo4j_session.run(query, AWS_ACCOUNT_ID=current_aws_account_id)
     groups_membership = {group["arn"]: get_group_membership_data(boto3_session, group["name"]) for group in groups}
     load_group_memberships(neo4j_session, groups_membership, aws_update_tag)
-    run_cleanup_job(
-        'aws_import_groups_membership_cleanup.json',
-        neo4j_session,
-        common_job_parameters,
-    )
+    # run_cleanup_job(
+    #     'aws_import_groups_membership_cleanup.json',
+    #     neo4j_session,
+    #     common_job_parameters,
+    # )
 
 
 @timeit
@@ -798,10 +800,10 @@ def sync_user_access_keys(
             account_access_keys = {user["arn"]: access_keys}
             load_user_access_keys(neo4j_session, account_access_keys, aws_update_tag)
     run_cleanup_job(
-        'aws_import_account_access_key_cleanup.json',
-        neo4j_session,
-        common_job_parameters,
-    )
+         'aws_import_account_access_key_cleanup.json',
+         neo4j_session,
+         common_job_parameters,
+     )
 
 
 @timeit
@@ -818,7 +820,8 @@ def sync(
     sync_group_memberships(neo4j_session, boto3_session, current_aws_account_id, update_tag, common_job_parameters)
     sync_assumerole_relationships(neo4j_session, current_aws_account_id, update_tag, common_job_parameters)
     sync_user_access_keys(neo4j_session, boto3_session, current_aws_account_id, update_tag, common_job_parameters)
-    run_cleanup_job('aws_import_principals_cleanup.json', neo4j_session, common_job_parameters)
+    # Remove the following line to avoid deleting old data for access keys and roles
+    # run_cleanup_job('aws_import_principals_cleanup.json', neo4j_session, common_job_parameters)
     merge_module_sync_metadata(
         neo4j_session,
         group_type='AWSAccount',

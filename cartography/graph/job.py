@@ -84,12 +84,13 @@ class GraphJob:
         """
         for s in self.statements:
             s.merge_parameters(parameters)
+            logger.info("Merged parameters for statement in job '%s'.", self.name)
 
     def run(self, neo4j_session: neo4j.Session) -> None:
         """
         Run the job. This will execute all statements sequentially.
         """
-        logger.debug("Starting job '%s'.", self.name)
+        logger.info("Starting job '%s'.", self.name)
         for stm in self.statements:
             try:
                 stm.run(neo4j_session)
@@ -118,9 +119,12 @@ class GraphJob:
         """
         Create a job from a JSON blob.
         """
+        logger.info("In from_json")
         data: Dict = json.loads(blob)
         statements = _get_statements_from_json(data, short_name)
+        logger.info("statements from json"+str(statements))
         name = data["name"]
+        logger.info("Loaded job '%s' from JSON blob.", data["name"])
         return cls(name, statements, short_name)
 
     @classmethod
@@ -176,6 +180,7 @@ class GraphJob:
 
         job_shortname: str = get_job_shortname(file_path)
         statements: List[GraphStatement] = _get_statements_from_json(data, job_shortname)
+        logger.info("Loaded job '%s' from file '%s'.", data["name"], file_path)
         name: str = data["name"]
         return cls(name, statements, job_shortname)
 
@@ -188,7 +193,7 @@ class GraphJob:
         """
         if not parameters:
             parameters = {}
-
+        logger.info("Running job from JSON blob for ROLE '%s'.", short_name)
         job: GraphJob = cls.from_json(blob, short_name)
         job.merge_parameters(parameters)
         job.run(neo4j_session)
@@ -211,10 +216,13 @@ def _get_statements_from_json(blob: Dict, short_job_name: Optional[str] = None) 
     """
     Deserialize all statements from the JSON blob.
     """
+    logger.info("In _get_statements_from_json")
     statements: List[GraphStatement] = []
     for i, statement_data in enumerate(blob["statements"]):
         # i+1 to make it 1-based and not 0-based to help with log readability
         statement: GraphStatement = GraphStatement.create_from_json(statement_data, short_job_name, i + 1)
+        logger.info("Created statement from JSON"+str(statement))
         statements.append(statement)
+        logger.info("Appended statement to statements")
 
     return statements

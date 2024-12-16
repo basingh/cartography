@@ -122,15 +122,21 @@ def run_cleanup_job(
     filename: str, neo4j_session: neo4j.Session, common_job_parameters: Dict,
     package: str = 'cartography.data.jobs.cleanup',
 ) -> None:
-    GraphJob.run_from_json(
-        neo4j_session,
-        read_text(
-            package,
-            filename,
-        ),
-        common_job_parameters,
-        get_job_shortname(filename),
-    )
+    logger.info(f"Running cleanup job {filename}")
+    logger.info("common_job_parameters: %s", common_job_parameters)
+    try:
+        GraphJob.run_from_json(
+            neo4j_session,
+            read_text(
+                package,
+                filename,
+            ),
+            common_job_parameters,
+            get_job_shortname(filename),
+        )
+    except Exception as e:
+        logger.error(f"Failed to run job {filename} due to: {str(e)}")
+    logger.info(f"Finished running cleanup job {filename}")
 
 
 def merge_module_sync_metadata(

@@ -27,3 +27,10 @@
   - redshift:GetClusterCredentials
   - redshift:JoinGroup
   relationship_name: CAN_ADMINISTER
+# Map principals that can assume other roles.
+- target_label: AWSRole
+  permissions:
+  - sts:AssumeRole
+  - sts:AssumeRoleWithSAML
+  - sts:AssumeRoleWithWebIdentity
+  relationship_name: CAN_ASSUME

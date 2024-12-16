@@ -17,3 +17,7 @@ build/
 generated
 dist/
 .local
+Todo.md
+cartography.log
+scratchpad.md
+ui-query.md
